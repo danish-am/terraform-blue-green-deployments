@@ -1,66 +1,87 @@
-## 🚀 Terraform Blue-Green Deployment for Azure Function Apps Using Traffic Manager
+# Terraform Blue-Green Deployment with Azure Traffic Manager
 
-This project implements **Blue-Green Deployment** for Azure Function Apps using **Azure Traffic Manager** to achieve zero-downtime deployments with automatic traffic routing.
+## 📌 Project Overview
+This project demonstrates a Blue-Green Deployment strategy using Terraform for Azure Function Apps, orchestrated by Azure Traffic Manager. It enables zero-downtime deployments and high availability by switching traffic between two environments (Blue and Green) based on priority routing and health probe status.
 
 ---
 
-### 📂 Project Structure
+## 🚀 What is Blue-Green Deployment?
+Blue-Green Deployment is a release management strategy that maintains two identical production environments:
+- **Blue**: The currently live environment serving traffic.
+- **Green**: The idle environment where new changes are deployed.
 
-```bash
-.
-├── backend.tf                      # Backend configuration for Terraform state
-├── main.tf                         # Root module calling other modules
-├── provider.tf                     # Azure provider configuration
-├── variables.tf                    # Global variables
-├── terraform.tfvars                # Global variable values (resource group, TM name, etc.)
-├── output.tf                       # Outputs like Traffic Manager FQDN
-├── blue/                           # Blue environment configuration
+ How Blue-Green Deployment Works in This Project
+This project provisions two Azure Function Apps:
+
+Blue Function App: myapp-blue.azurewebsites.net
+
+Green Function App: myapp-green.azurewebsites.net
+
+A Traffic Manager profile sits in front of them:
+
+Traffic Manager DNS: mybluegreentraffic.trafficmanager.net
+
+Uses Priority Routing:
+
+Priority 1 → Blue
+
+Priority 2 → Green
+
+🟢 If Blue is healthy → all traffic goes to Blue.
+🔵 If Blue fails health checks → Traffic Manager redirects to Green.
+
+### Workflow:
+1. **Access Blue Directly:** Visiting the Blue URL directly sends requests to the Blue Function App.
+2. **Access Green Directly:** Visiting the Green URL directly sends requests to the Green Function App.
+3. **Traffic Manager Role:** Traffic Manager monitors both Blue and Green using health probes:
+   - Uses **Priority Routing** (Blue = Priority 1, Green = Priority 2).
+   - If Blue is healthy, all traffic goes to Blue.
+   - If Blue is unhealthy (probe failure), traffic automatically shifts to Green.
+
+> ✅ You can turn off one environment (disable or scale down) — Traffic Manager will automatically route requests to the other.
+
+---
+
+## 🗂️ Project Structure
+```
+terraform-blue-green-deployments/
+├── backend.tf
+├── blue/
 │   ├── backend.tf
 │   ├── main.tf
 │   ├── output.tf
 │   ├── provider.tf
-│   ├── terraform.tfvars            # Blue-specific variable values
+│   ├── terraform.tfvars          # BLUE environment-specific variables
 │   └── variables.tf
-├── green/                          # Green environment configuration
+├── green/
 │   ├── backend.tf
 │   ├── main.tf
 │   ├── output.tf
 │   ├── provider.tf
-│   ├── terraform.tfvars            # Green-specific variable values
+│   ├── terraform.tfvars          # GREEN environment-specific variables
 │   └── variables.tf
-├── modules/                        # Reusable Terraform modules
-│   ├── function_app/               # Azure Function App module
+├── modules/
+│   ├── function_app/
 │   │   ├── main.tf
 │   │   ├── output.tf
 │   │   └── variables.tf
-│   └── trafficmanager/             # Azure Traffic Manager module
+│   └── trafficmanager/
 │       ├── main.tf
 │       ├── output.tf
 │       └── variables.tf
-└── .gitignore                      # Ignore tfstate, backups, .terraform dir
+├── main.tf                      # Calls the modules and handles root-level resources
+├── output.tf
+├── provider.tf
+├── terraform.tfvars             # Root-level variables (shared configuration)
+├── variables.tf
+└── .gitignore
 ```
 
 ---
 
-## 🌱 Prerequisites
+## 📝 Required `terraform.tfvars` Files Example
 
-- Azure Subscription
-- Terraform v1.3+
-- Azure CLI configured (`az login`)
-- Azure Storage Account and containers for remote backend state
-
----
-
-## ⚙️ `terraform.tfvars` Explanation
-
-| Location           | Purpose                                  | Required Values                         |
-|--------------------|------------------------------------------|------------------------------------------|
-| `terraform.tfvars` (root)        | Global values for Traffic Manager and Resource Group | `resource_group_name`, `traffic_manager_name`, `traffic_manager_dns_name`, `blue_app_url`, `green_app_url` |
-| `blue/terraform.tfvars`          | Blue environment config        | `resource_group_name`, `location`, `storage_account_name`, `storage_account_access_key`, `function_app_name`, `app_service_plan_name`, `package_url` |
-| `green/terraform.tfvars`         | Green environment config       | Same as blue, but with green-specific values |
-| `modules/trafficmanager/variables.tf` | Handles Traffic Manager settings | Values are passed from the root module via `main.tf` |
-
-✅ **Example for root `terraform.tfvars`:**
+### Root `terraform.tfvars`:
 ```hcl
 resource_group_name      = "blue-green-rg"
 traffic_manager_name     = "blue-green-traffic-manager"
@@ -69,56 +90,63 @@ blue_app_url             = "myapp-blue.azurewebsites.net"
 green_app_url            = "myapp-green.azurewebsites.net"
 ```
 
+### Blue Environment `blue/terraform.tfvars`:
+```hcl
+function_app_name       = "myapp-blue"
+storage_account_name    = "blueappstorage"
+storage_account_access_key = "<YOUR_ACCESS_KEY>"
+app_service_plan_name   = "blue-app-service-plan"
+package_url             = "<YOUR_FUNCTION_APP_ZIP_URL>"
+```
+
+### Green Environment `green/terraform.tfvars`:
+```hcl
+function_app_name       = "myapp-green"
+storage_account_name    = "greenappstorage"
+storage_account_access_key = "<YOUR_ACCESS_KEY>"
+app_service_plan_name   = "green-app-service-plan"
+package_url             = "<YOUR_FUNCTION_APP_ZIP_URL>"
+```
+
+### Traffic Manager Module Variables:
+Handled via root-level `terraform.tfvars`.
+
 ---
 
-## 🏗️ Step-by-Step Deployment Guide
+## 🛠️ How to Use
 
-### 1️⃣ Initialize Backend and Providers
+### 1️⃣ Initialize Terraform Backend:
 ```bash
 terraform init -reconfigure
 ```
 
-### 2️⃣ Plan the Deployment
+### 2️⃣ Plan the Deployment:
 ```bash
 terraform plan
 ```
 
-### 3️⃣ Apply the Deployment
+### 3️⃣ Apply the Configuration:
 ```bash
 terraform apply -auto-approve
 ```
 
 ---
 
-## 🎯 Deployment Flow
-
-1. **Provision Blue Environment:**
-   - Deploys the Azure Function App in Blue slot.
-   - Uses `blue/terraform.tfvars`.
-
-2. **Provision Green Environment:**
-   - Deploys the Azure Function App in Green slot.
-   - Uses `green/terraform.tfvars`.
-
-3. **Traffic Manager:**
-   - Sets up Priority-based routing.
-   - Routes to Blue by default (priority 1), Green as backup (priority 2).
-   - Health checks configured via `monitor_config`.
+## 📡 How Traffic Manager Health Probes Work:
+- Monitors the `/api/HttpTrigger` endpoint (or any specified path).
+- Uses **HTTP or HTTPS** with configurable port and probing interval.
+- If the primary endpoint (Blue) fails the health probe:
+  - Traffic switches to the secondary endpoint (Green).
 
 ---
 
-## ⚠️ Health Probe Notes
-
-> The Function App’s default HTTP trigger requires the query parameter `?name=xyz`.  
-> Traffic Manager probes **cannot** send this parameter, so the health probe fails unless the endpoint allows a blank query.  
-> You may either:
-> - Adjust your function code to allow blank requests.
-> - Or enable **Always Serve** at Traffic Manager endpoint level to bypass health checks.
+## ⚡ Considerations:
+- Ensure health probes target the correct working endpoint (add query string if necessary).
+- Do **NOT** commit sensitive data (e.g., storage keys) into version control.
+- Use `.gitignore` for `.tfstate`, `.terraform/`, and sensitive backups.
 
 ---
 
-## 📤 Cleanup
+## 📎 License
+MIT License.
 
-```bash
-terraform destroy -auto-approve
-```
