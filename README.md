@@ -10,7 +10,7 @@ Blue-Green Deployment is a release management strategy that maintains two identi
 - **Blue**: The currently live environment serving traffic.
 - **Green**: The idle environment where new changes are deployed.
 
- How Blue-Green Deployment Works in This Project
+🚀 How Blue-Green Deployment Works in This Project
 This project provisions two Azure Function Apps:
 
 Blue Function App: myapp-blue.azurewebsites.net
